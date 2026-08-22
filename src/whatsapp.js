@@ -5,6 +5,7 @@ import makeWASocket, {
 
 import P from "pino";
 import fs from "fs";
+import path from "path";
 
 import { askAI } from "./ai.js";
 import {
@@ -12,8 +13,7 @@ import {
     setConnected
 } from "./index.js";
 
-const AUTH_PATH =
-    process.env.AUTH_PATH || "/var/data/auth";
+let AUTH_PATH = process.env.AUTH_PATH || "/var/data/auth";
 
 function ensureAuthDirectory() {
     try {
@@ -21,15 +21,30 @@ function ensureAuthDirectory() {
             fs.mkdirSync(AUTH_PATH, {
                 recursive: true
             });
+            console.log(`✅ Auth directory created: ${AUTH_PATH}`);
         }
     } catch (error) {
-        console.error(
-            `❌ Cannot create auth directory: ${AUTH_PATH}`
-        );
-
-        console.error(error);
-
-        process.exit(1);
+        if (error.code === "EACCES") {
+            console.warn(`⚠️  Permission denied for ${AUTH_PATH}`);
+            console.warn("📁 Using /tmp/whatsapp-auth instead");
+            
+            AUTH_PATH = "/tmp/whatsapp-auth";
+            
+            try {
+                if (!fs.existsSync(AUTH_PATH)) {
+                    fs.mkdirSync(AUTH_PATH, { recursive: true });
+                }
+                console.log(`✅ Using fallback auth path: ${AUTH_PATH}`);
+            } catch (fallbackError) {
+                console.error("❌ Cannot create fallback auth directory");
+                console.error(fallbackError);
+                process.exit(1);
+            }
+        } else {
+            console.error(`❌ Cannot create auth directory: ${AUTH_PATH}`);
+            console.error(error);
+            process.exit(1);
+        }
     }
 }
 
@@ -197,4 +212,5 @@ export async function startWhatsApp() {
             }
         }
     );
-}
+                    }
+                    
