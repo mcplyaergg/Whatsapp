@@ -1,15 +1,19 @@
 {
   "name": "whatsapp-ai-bot",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "start": "node src/index.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "@google/generative-ai": "latest",
-    "@whiskeysockets/baileys": "latest",
-    "express": "latest",
-    "pino": "latest",
-    "qrcode": "latest"
+    "@google/generative-ai": "^0.24.1",
+    "@whiskeysockets/baileys": "^6.7.18",
+    "express": "^5.1.0",
+    "pino": "^9.7.0",
+    "qrcode": "^1.5.4"
   }
 }
