@@ -5,212 +5,528 @@ import makeWASocket, {
 
 import P from "pino";
 import fs from "fs";
-import path from "path";
 
 import { askAI } from "./ai.js";
+
 import {
     setQR,
     setConnected
 } from "./index.js";
 
-let AUTH_PATH = process.env.AUTH_PATH || "/var/data/auth";
+// ======================================
+// AUTH PATH
+// ======================================
+
+const AUTH_PATH =
+    process.env.AUTH_PATH ||
+    "/var/data/auth";
 
 function ensureAuthDirectory() {
     try {
         if (!fs.existsSync(AUTH_PATH)) {
-            fs.mkdirSync(AUTH_PATH, {
-                recursive: true
-            });
-            console.log(`✅ Auth directory created: ${AUTH_PATH}`);
-        }
-    } catch (error) {
-        if (error.code === "EACCES") {
-            console.warn(`⚠️  Permission denied for ${AUTH_PATH}`);
-            console.warn("📁 Using /tmp/whatsapp-auth instead");
-            
-            AUTH_PATH = "/tmp/whatsapp-auth";
-            
-            try {
-                if (!fs.existsSync(AUTH_PATH)) {
-                    fs.mkdirSync(AUTH_PATH, { recursive: true });
+            fs.mkdirSync(
+                AUTH_PATH,
+                {
+                    recursive: true
                 }
-                console.log(`✅ Using fallback auth path: ${AUTH_PATH}`);
-            } catch (fallbackError) {
-                console.error("❌ Cannot create fallback auth directory");
-                console.error(fallbackError);
-                process.exit(1);
-            }
-        } else {
-            console.error(`❌ Cannot create auth directory: ${AUTH_PATH}`);
-            console.error(error);
-            process.exit(1);
+            );
+
+            console.log(
+                `✅ Auth directory created: ${AUTH_PATH}`
+            );
         }
+
+        console.log(
+            `📁 WhatsApp auth path: ${AUTH_PATH}`
+        );
+
+    } catch (error) {
+        console.error(
+            "❌ Cannot create auth directory."
+        );
+
+        console.error(error);
+
+        throw error;
     }
 }
 
+// ======================================
+// START WHATSAPP
+// ======================================
+
 export async function startWhatsApp() {
+
     ensureAuthDirectory();
 
-    console.log("🔄 Starting WhatsApp...");
-
-    const {
-        state,
-        saveCreds
-    } = await useMultiFileAuthState(AUTH_PATH);
-
-    const sock = makeWASocket({
-        auth: state,
-
-        logger: P({
-            level: "silent"
-        }),
-
-        markOnlineOnConnect: false
-    });
-
-    // Save WhatsApp authentication data
-    sock.ev.on(
-        "creds.update",
-        saveCreds
+    console.log(
+        "🔄 Starting WhatsApp..."
     );
 
-    // Connection updates
-    sock.ev.on(
-        "connection.update",
-        async (update) => {
-            const {
-                connection,
-                lastDisconnect,
-                qr
-            } = update;
+    try {
 
-            // New QR received
-            if (qr) {
-                console.log(
-                    "📱 New WhatsApp QR generated."
-                );
+        const {
+            state,
+            saveCreds
+        } = await useMultiFileAuthState(
+            AUTH_PATH
+        );
 
-                setQR(qr);
+        const sock = makeWASocket({
 
-                console.log(
-                    "🌐 Open your Render URL to scan it."
-                );
-            }
+            auth: state,
 
-            // Successfully connected
-            if (connection === "open") {
-                console.log(
-                    "✅ WhatsApp connected successfully!"
-                );
+            logger: P({
+                level: "silent"
+            }),
 
-                setConnected(true);
-            }
+            markOnlineOnConnect: false,
 
-            // Connection closed
-            if (connection === "close") {
-                setConnected(false);
+            syncFullHistory: false,
 
-                const statusCode =
-                    lastDisconnect?.error?.output?.statusCode;
+            generateHighQualityLinkPreview: false
+        });
 
-                const shouldReconnect =
-                    statusCode !== DisconnectReason.loggedOut;
+        // ==================================
+        // SAVE CREDENTIALS
+        // ==================================
 
-                console.log(
-                    `❌ WhatsApp disconnected. Code: ${statusCode}`
-                );
+        sock.ev.on(
+            "creds.update",
+            saveCreds
+        );
 
-                if (shouldReconnect) {
+        // ==================================
+        // CONNECTION UPDATE
+        // ==================================
+
+        sock.ev.on(
+            "connection.update",
+            async (update) => {
+
+                const {
+                    connection,
+                    lastDisconnect,
+                    qr
+                } = update;
+
+                // ------------------------------
+                // QR
+                // ------------------------------
+
+                if (qr) {
+
+                    console.log(
+                        "📱 New WhatsApp QR generated."
+                    );
+
+                    setQR(qr);
+
+                    console.log(
+                        "🌐 Open your Render URL and scan the QR."
+                    );
+                }
+
+                // ------------------------------
+                // CONNECTED
+                // ------------------------------
+
+                if (
+                    connection === "open"
+                ) {
+
+                    console.log(
+                        "===================================="
+                    );
+
+                    console.log(
+                        "✅ WHATSAPP CONNECTED!"
+                    );
+
+                    console.log(
+                        "🤖 AI BOT IS READY!"
+                    );
+
+                    console.log(
+                        "🎯 Trigger: ai"
+                    );
+
+                    console.log(
+                        "===================================="
+                    );
+
+                    setConnected(true);
+                }
+
+                // ------------------------------
+                // CLOSED
+                // ------------------------------
+
+                if (
+                    connection === "close"
+                ) {
+
+                    setConnected(false);
+
+                    const statusCode =
+                        lastDisconnect
+                            ?.error
+                            ?.output
+                            ?.statusCode;
+
+                    const loggedOut =
+                        statusCode ===
+                        DisconnectReason.loggedOut;
+
+                    console.log(
+                        `❌ WhatsApp disconnected. Code: ${statusCode}`
+                    );
+
+                    // --------------------------
+                    // LOGGED OUT
+                    // --------------------------
+
+                    if (loggedOut) {
+
+                        console.log(
+                            "🚪 WhatsApp logged out."
+                        );
+
+                        console.log(
+                            "🗑️ Delete the auth folder and scan a new QR."
+                        );
+
+                        return;
+                    }
+
+                    // --------------------------
+                    // RECONNECT
+                    // --------------------------
+
                     console.log(
                         "🔄 Reconnecting in 5 seconds..."
                     );
 
-                    setTimeout(() => {
-                        startWhatsApp().catch(
-                            console.error
-                        );
-                    }, 5000);
-                } else {
-                    console.log(
-                        "🚪 WhatsApp logged out."
-                    );
+                    setTimeout(
+                        () => {
 
-                    console.log(
-                        "Delete the auth folder and scan a new QR."
+                            startWhatsApp()
+                                .catch(
+                                    (error) => {
+                                        console.error(
+                                            "❌ Reconnect error:",
+                                            error
+                                        );
+                                    }
+                                );
+
+                        },
+                        5000
                     );
                 }
             }
-        }
-    );
+        );
 
-    // Incoming messages
-    sock.ev.on(
-        "messages.upsert",
-        async ({ messages, type }) => {
-            if (type !== "notify") {
-                return;
-            }
+        // ==================================
+        // INCOMING MESSAGES
+        // ==================================
 
-            for (const message of messages) {
-                try {
-                    // Ignore invalid messages
-                    if (!message?.message) {
-                        continue;
-                    }
+        sock.ev.on(
+            "messages.upsert",
+            async ({
+                messages,
+                type
+            }) => {
 
-                    // Ignore our own messages
-                    if (message.key.fromMe) {
-                        continue;
-                    }
+                // Only process new messages
+                if (
+                    type !== "notify"
+                ) {
+                    return;
+                }
 
-                    const jid =
-                        message.key.remoteJid;
+                for (
+                    const message
+                    of messages
+                ) {
 
-                    // Ignore WhatsApp status
-                    if (
-                        jid ===
-                        "status@broadcast"
-                    ) {
-                        continue;
-                    }
+                    try {
 
-                    // Get text
-                    const text =
-                        message.message.conversation ||
-                        message.message.extendedTextMessage?.text;
+                        // ----------------------
+                        // BASIC VALIDATION
+                        // ----------------------
 
-                    if (!text?.trim()) {
-                        continue;
-                    }
-
-                    console.log(
-                        `📩 Message from ${jid}: ${text}`
-                    );
-
-                    // Ask Gemini
-                    const reply =
-                        await askAI(text);
-
-                    // Send AI response
-                    await sock.sendMessage(
-                        jid,
-                        {
-                            text: reply
+                        if (
+                            !message ||
+                            !message.message
+                        ) {
+                            continue;
                         }
-                    );
 
-                    console.log(
-                        "🤖 AI response sent."
-                    );
+                        // Ignore bot's own messages
+                        if (
+                            message.key
+                                ?.fromMe
+                        ) {
+                            continue;
+                        }
 
-                } catch (error) {
-                    console.error(
-                        "❌ Message handling error:",
-                        error
-                    );
+                        const jid =
+                            message.key
+                                ?.remoteJid;
+
+                        if (!jid) {
+                            continue;
+                        }
+
+                        // Ignore status
+                        if (
+                            jid ===
+                            "status@broadcast"
+                        ) {
+                            continue;
+                        }
+
+                        // Ignore newsletters/channels
+                        if (
+                            jid.endsWith(
+                                "@newsletter"
+                            )
+                        ) {
+                            continue;
+                        }
+
+                        // ----------------------
+                        // GET MESSAGE TEXT
+                        // ----------------------
+
+                        const text =
+                            getMessageText(
+                                message
+                            );
+
+                        if (
+                            !text ||
+                            !text.trim()
+                        ) {
+                            continue;
+                        }
+
+                        const cleanText =
+                            text.trim();
+
+                        console.log(
+                            `📩 Incoming message from ${jid}: ${cleanText}`
+                        );
+
+                        // ==================================
+                        // ONLY RESPOND TO "AI"
+                        // ==================================
+
+                        const lower =
+                            cleanText.toLowerCase();
+
+                        // Exact "ai"
+                        if (
+                            lower === "ai"
+                        ) {
+
+                            console.log(
+                                `🤖 AI trigger from ${jid}`
+                            );
+
+                            await sock.sendMessage(
+                                jid,
+                                {
+                                    text:
+                                        "👋 Hello! I'm your AI assistant.\n\n" +
+                                        "Ask me something like:\n" +
+                                        "ai what is Minecraft?"
+                                }
+                            );
+
+                            console.log(
+                                "✅ AI help message sent."
+                            );
+
+                            continue;
+                        }
+
+                        // Must start with "ai "
+                        if (
+                            !lower.startsWith(
+                                "ai "
+                            )
+                        ) {
+
+                            console.log(
+                                "⏭️ Ignored — no AI trigger."
+                            );
+
+                            continue;
+                        }
+
+                        // ----------------------
+                        // REMOVE AI PREFIX
+                        // ----------------------
+
+                        const question =
+                            cleanText
+                                .substring(3)
+                                .trim();
+
+                        if (!question) {
+                            continue;
+                        }
+
+                        console.log(
+                            `🧠 Asking Gemini: ${question}`
+                        );
+
+                        // ----------------------
+                        // GEMINI
+                        // ----------------------
+
+                        const reply =
+                            await askAI(
+                                question
+                            );
+
+                        // ----------------------
+                        // SEND RESPONSE
+                        // ----------------------
+
+                        await sock.sendMessage(
+                            jid,
+                            {
+                                text: reply
+                            }
+                        );
+
+                        console.log(
+                            `✅ AI response sent to ${jid}`
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "❌ Message handling error:"
+                        );
+
+                        console.error(error);
+
+                        // Try to tell user something went wrong
+                        try {
+
+                            const jid =
+                                message.key
+                                    ?.remoteJid;
+
+                            if (jid) {
+
+                                await sock.sendMessage(
+                                    jid,
+                                    {
+                                        text:
+                                            "❌ Sorry, I couldn't process that request right now."
+                                    }
+                                );
+                            }
+
+                        } catch {}
+                    }
                 }
             }
-        }
-    );
-                    }
-                    
+        );
+
+        console.log(
+            "✅ WhatsApp event handlers loaded."
+        );
+
+        return sock;
+
+    } catch (error) {
+
+        console.error(
+            "❌ Failed to start WhatsApp:"
+        );
+
+        console.error(error);
+
+        setConnected(false);
+
+        throw error;
+    }
+}
+
+// ======================================
+// EXTRACT MESSAGE TEXT
+// ======================================
+
+function getMessageText(message) {
+
+    const msg =
+        message?.message;
+
+    if (!msg) {
+        return null;
+    }
+
+    // Normal text
+    if (
+        typeof msg.conversation ===
+        "string"
+    ) {
+        return msg.conversation;
+    }
+
+    // Extended text
+    if (
+        typeof
+        msg.extendedTextMessage
+            ?.text ===
+        "string"
+    ) {
+        return msg
+            .extendedTextMessage
+            .text;
+    }
+
+    // Image caption
+    if (
+        typeof
+        msg.imageMessage
+            ?.caption ===
+        "string"
+    ) {
+        return msg
+            .imageMessage
+            .caption;
+    }
+
+    // Video caption
+    if (
+        typeof
+        msg.videoMessage
+            ?.caption ===
+        "string"
+    ) {
+        return msg
+            .videoMessage
+            .caption;
+    }
+
+    // Document caption
+    if (
+        typeof
+        msg.documentMessage
+            ?.caption ===
+        "string"
+    ) {
+        return msg
+            .documentMessage
+            .caption;
+    }
+
+    return null;
+            }
