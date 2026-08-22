@@ -12,15 +12,32 @@ const logger = pino({ transport: { target: 'pino-pretty' } });
 // Determine auth path from environment or use default
 const AUTH_PATH = process.env.AUTH_PATH || path.join(__dirname, '..', 'auth');
 
-// Ensure auth directory exists
-if (!fs.existsSync(AUTH_PATH)) {
-  fs.mkdirSync(AUTH_PATH, { recursive: true });
-  logger.info(`Created auth directory at ${AUTH_PATH}`);
-}
+// Ensure auth directory exists with proper error handling
+const ensureAuthDir = () => {
+  try {
+    if (!fs.existsSync(AUTH_PATH)) {
+      fs.mkdirSync(AUTH_PATH, { recursive: true, mode: 0o755 });
+      logger.info(`Created auth directory at ${AUTH_PATH}`);
+    }
+  } catch (err) {
+    if (err.code === 'EACCES') {
+      logger.warn(`Permission denied for ${AUTH_PATH}, using temp directory`);
+      process.env.AUTH_PATH = '/tmp/whatsapp-auth';
+      if (!fs.existsSync('/tmp/whatsapp-auth')) {
+        fs.mkdirSync('/tmp/whatsapp-auth', { recursive: true });
+      }
+      return '/tmp/whatsapp-auth';
+    }
+    throw err;
+  }
+  return AUTH_PATH;
+};
+
+const finalAuthPath = ensureAuthDir();
 
 const connectToWhatsApp = async () => {
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_PATH);
+    const { state, saveCreds } = await useMultiFileAuthState(finalAuthPath);
 
     const sock = makeWASocket({
       auth: state,
