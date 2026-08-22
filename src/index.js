@@ -1,5 +1,4 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@baileys/core';
-import { Boom } from '@hapi/boom';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState } from 'baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { handleMessage } from './whatsapp.js';
@@ -46,7 +45,7 @@ const connectToWhatsApp = async () => {
       }
 
       if (connection === 'close') {
-        if (new Boom(lastDisconnect?.error).output.statusCode !== DisconnectReason.loggedOut) {
+        if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
           logger.warn('❌ Connection lost, reconnecting...');
           setTimeout(() => {
             connectToWhatsApp();
